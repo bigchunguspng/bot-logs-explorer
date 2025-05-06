@@ -18,7 +18,7 @@ namespace BotLogsExplorer
         [Option('g', "group", Required = false, Default = -1, HelpText = "Group logs by an index of --include regex capture group.")]
         public int Group { get; set; }
 
-        [Value(0, Default = "log*.txt", MetaName = "FILE", HelpText = "Logs file path.")]
+        [Value(0, Default = "log.txt", MetaName = "FILE", HelpText = "Logs file path.")]
         public string FilePath { get; set; } = null!;
 
         [Option('c', "chat", Required = false, Default = -1, HelpText = "Filter logs by chat id (last 4 numbers).")]
