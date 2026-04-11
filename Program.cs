@@ -74,9 +74,9 @@ void Run(Options options)
         {
             options.Include = (options.Chat > 0, options.Command != null) switch
             {
-                (true , true ) => $@" \| .*{options.Chat} .. .... .. ((\/{options.Command}\S*)(?:\s(.*))?)",
-                (true , false) => $@" \| .*{options.Chat} .. .... .. ((\S*)(?:\s(.*))?)",
-                (false, true ) =>  @" \| .{5}"      + $@" .. .... .. ((\/{options.Command}\S*)(?:\s(.*))?)",
+                (true , true ) => $@" \| .*{options.Chat} (..) (....) (..) ((\/{options.Command}\S*)(?:\s(.*))?)",
+                (true , false) => $@" \| .*{options.Chat} (..) (....) (..) ((\S*)(?:\s(.*))?)",
+                (false, true ) =>  @" \| (.{5})"    + $@" (..) (....) (..) ((\/{options.Command}\S*)(?:\s(.*))?)",
                 (false, false) => options.Include,
             };
         }
