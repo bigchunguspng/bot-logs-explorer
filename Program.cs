@@ -145,12 +145,12 @@ void Run(Options options)
     }
     else if (options.TimeTable)
     {
-        var regex = new Regex(@"^(.+?) \| ");
-        var dateTimes = linesFiltered.Select(x =>
-        {
-            var time = regex.Match(x).Groups[1].Value;
-            return DateTime.ParseExact(time, "MM/dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
-        }).ToList();
+        var regex = new Regex(@"^(\d\d\/\d\d \d\d:\d\d:\d\d\.\d\d\d) \| ");
+        var dateTimes = linesFiltered
+            .Select(x => regex.Match(x))
+            .Where(x => x.Success)
+            .Select(x => DateTime.ParseExact(x.Groups[1].Value, "MM/dd HH:mm:ss.fff", CultureInfo.InvariantCulture))
+            .ToList();
         var byH = dateTimes.GroupBy(x => x.Hour     ).ToDictionary(x => x.Key, x => x.Count());
         var byD = dateTimes.GroupBy(x => x.DayOfWeek).ToDictionary(x => x.Key, x => x.Count());
         var byM = dateTimes.GroupBy(x => x.Month    ).ToDictionary(x => x.Key, x => x.Count());
