@@ -1,61 +1,136 @@
 ﻿using System.Globalization;
 using System.Text.RegularExpressions;
 using CommandLine;
+using CommandLine.Text;
 
 namespace BotLogsExplorer
 {
     public class Options
     {
-        [Option('i', "include", Required = false, HelpText = "Filter logs that INCLUDE pattern.")]
-        public string? Include { get; set; }
-
-        [Option('e', "exclude", Required = false, HelpText = "Filter logs that EXCLUDE pattern.")]
-        public string? Exclude { get; set; }
-
-        [Option('r', "ignore", Required = false, HelpText = "Pattern that should be removed, e.g. \"@xyz_bot(?<=\\S)\".")]
-        public string? Ignore { get; set; }
-
-        [Option('g', "group", Required = false, Default = -1, HelpText = "Group logs by an index of --include regex capture group.")]
-        public int Group { get; set; }
-
-        [Value(0, Default = "log.txt", MetaName = "FILE", HelpText = "Logs file path.")]
+        [Value(0, Default = "./Log/log.txt", MetaName = "FILE", HelpText = "Logs file path.")]
         public string FilePath { get; set; } = null!;
 
-        [Option('c', "chat", Required = false, Default = -1, HelpText = "Filter logs by chat id (last 4 numbers).")]
+        [Option('i', "include", HelpText = "Filter lines with given pattern.")]
+        public string? Include { get; set; }
+
+        [Option('e', "exclude", HelpText = "Filter lines w/o  given pattern.")]
+        public string? Exclude { get; set; }
+
+        [Option('r', "remove", HelpText = "Pattern to remove from lines, e.g. \"@xyz_bot(?<=\\S)\".")]
+        public string? Remove { get; set; }
+
+        [Option('g', "group", Default = -1, HelpText = "Group lines by regex group index of --include pattern.")]
+        public int GroupIndex { get; set; }
+
+        [Option('G', "filter-group", HelpText = "Filter lines by value of regex group supplied via --group.")]
+        public string? GroupValue { get; set; }
+
+        [Option('c', "chat", Default = -1, HelpText = "Filter lines by chat id (last 1-5 digits).")]
         public int Chat { get; set; }
-        
-        [Option('m', "command", Required = false, HelpText = "Filter logs by command (without slash).")]
+
+        [Option('C', "command", HelpText = "Filter lines by command (w/o slash).")]
         public string? Command { get; set; }
 
-        [Option('d', "debug", Required = false)]
+        [Option('T', "type", HelpText = "Filter lines by type: [C]OMMAND, [A]UTO, CALL[B]ACK, [I]NLINE, [E]VENT.")]
+        public string? Type { get; set; }
+
+        [Option('E', "event", HelpText = "Filter lines by event: START, SAVE, ADMIN, EXIT etc.")]
+        public string? Event { get; set; }
+
+        [Option('d', "debug", HelpText = "Debug --include and --exculde patterns.")]
         public bool Debug { get; set; }
 
-        [Option('l', "limit", Required = false, Default = -1, HelpText = "Limit output to a max lines value.")]
+        [Option('l', "limit", Default = -1, HelpText = "Max number of lines to output.")]
         public int Limit { get; set; }
 
-        [Option('t', "time", Required = false, HelpText = "Visualize data as a timetable.")]
+        [Option('t', "time", HelpText = "Visualize data as a timetable.")]
         public bool Timetable { get; set; }
 
-        [Option('o', "time-offset", Required = false, HelpText = "Time offset in hours relative to bot timezone.")]
+        [Option('o', "time-offset", HelpText = "Time offset in hours relative to bot timezone.")]
         public int TimeOffset { get; set; }
     }
 
     internal static class Program
     {
-        public const string AUTO = @"(\[auto,\s*(\S*)\]\s)?";
-
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
-            var options = Parser.Default.ParseArguments<Options>(args).Value;
-            if (options.Chat > 0 && options.Command != null) options.Include = $@"{options.Chat}] >> {AUTO}((\/{options.Command}\S*)(?:\s(.*))?)";
-            else if (options.Command != null)                options.Include =               $@"] >> {AUTO}((\/{options.Command}\S*)(?:\s(.*))?)";
-            else if (options.Chat > 0)                       options.Include = $@"{options.Chat}] >> {AUTO}((\S*).*)";
+            var parser = new Parser(with => with.HelpWriter = null);
+            var result = parser.ParseArguments<Options>(args);
+            result
+                .WithParsed(Run)
+                .WithNotParsed(_ => DisplayHelp(result));
+        }
 
-            if (options.Limit < 0)
+        private static void DisplayHelp<T>(ParserResult<T> result)
+        {
+            var helpText = HelpText.AutoBuild(result, help =>
             {
-                options.Limit = int.MaxValue;
+                help.Copyright = string.Empty;
+                help.AdditionalNewLineAfterOption = false;
+                help.MaximumDisplayWidth = 120;
+                return HelpText.DefaultParsingErrorsHandler(result, help);
+            });
+            Console.WriteLine(helpText);
+        }
+
+        private static void Run(Options options)
+        {
+            // CHECK FILE
+            if (File.Exists(options.FilePath) == false)
+            {
+                Console.WriteLine($"FILE {options.FilePath} NOT FOUND!");
+                return;
             }
 
+            // ADJUST OPTIONS
+            if (options.Event != null)
+            {
+                options.Include = $@" \| .*{options.Event} .. (.*)";
+            }
+            else if (options.Type != null)
+            {
+                var chat = options.Chat > 0 ? $".*{options.Chat}" : ".....";
+                options.Include = options.Type.ToUpper() switch
+                {
+                    "C" => $@" \| ({chat}) -> (....) (..) \/([^ []+)(?: |\[N\])?(.*)", //     [C]OMMAND
+                    "A" => $@" \| ({chat}) <- (....) (..) \@(\S+) (....) ?(.*)",       //     [A]UTO
+                    "B" => $@" \| ({chat}) -> (....) \*(.*)",                          // CALL[B]ACK
+                    "I" => $@" \| ({chat}) -- (....) \@\S+ ?(.*)",                     //     [I]NLINE
+                    "E" =>  @" \| (.....) >> (.*)",                                    // BOT [E]VENTS
+                    _ => null,
+                };
+
+                if (options.Include == null)
+                {
+                    var text =
+                        $"""
+                         WRONG TYPE {options.Type}
+                         VALID TYPES:
+                             C - COMMAND
+                             A - AUTO
+                             B - CALLBACK
+                             I - INLINE
+                             E - BOT EVENTS
+                         """;
+                    Console.WriteLine(text);
+                    return;
+                }
+            }
+            else
+            {
+                options.Include = (options.Chat > 0, options.Command != null) switch
+                {
+                    (true , true ) => $@" \| .*{options.Chat} .. .... .. ((\/{options.Command}\S*)(?:\s(.*))?)",
+                    (true , false) => $@" \| .*{options.Chat} .. .... .. ((\S*)(?:\s(.*))?)",
+                    (false, true ) =>  @" \| .{5}"      + $@" .. .... .. ((\/{options.Command}\S*)(?:\s(.*))?)",
+                    (false, false) => options.Include,
+                };
+            }
+
+            if (options.Limit < 0)
+                options.Limit = int.MaxValue;
+
+            // DEBUG
             if (options.Debug)
             {
                 Console.WriteLine($"INCLUDE: {options.Include}");
@@ -63,23 +138,31 @@ namespace BotLogsExplorer
                 Console.WriteLine();
             }
 
+            // READ FILE
             var lines = File.ReadAllLines(options.FilePath);
             Console.WriteLine($"{lines.Length, 8} - LINES TOTAL");
 
+            // FILTER LINES
             var linesQuery = lines.AsEnumerable();
             if (options.Include != null)
             {
                 var regex = new Regex(options.Include);
                 linesQuery = linesQuery.Where(x => regex.IsMatch(x));
+
+                if (options is { GroupIndex: > 0, GroupValue: not null })
+                {
+                    var regex_2 = new Regex(options.GroupValue);
+                    linesQuery = linesQuery.Where(x => regex_2.IsMatch(regex.Match(x).Groups[options.GroupIndex].Value));
+                }
             }
             if (options.Exclude != null)
             {
                 var regex = new Regex(options.Exclude);
                 linesQuery = linesQuery.Where(x => !regex.IsMatch(x));
             }
-            if (options.Ignore != null)
+            if (options.Remove != null)
             {
-                var regex = new Regex(options.Ignore);
+                var regex = new Regex(options.Remove);
                 linesQuery = linesQuery.Select(x => regex.Replace(x, ""));
             }
 
@@ -87,11 +170,12 @@ namespace BotLogsExplorer
             var countFiltered = linesFiltered.Count;
             Console.WriteLine($"{countFiltered, 8} - LINES FILTERED");
 
-            if (options is { Include: not null, Group: > 0 })
+            // OUTPUT
+            if (options is { Include: not null, GroupIndex: > 0, GroupValue: null })
             {
                 var regex = new Regex(options.Include);
                 var groups = linesFiltered
-                    .GroupBy(x => regex.Match(x).Groups[options.Group].Value)
+                    .GroupBy(x => regex.Match(x).Groups[options.GroupIndex].Value)
                     .OrderByDescending(x => x.Count()).ToList();
 
                 Console.WriteLine($"{groups.Count, 8} - LINES DISTINCT");
@@ -105,8 +189,12 @@ namespace BotLogsExplorer
             }
             else if (options.Timetable)
             {
-                var regex = new Regex(@"\[(.+) \| \.\.\d+\]");
-                var dateTimes = linesFiltered.Select(x => DateTime.ParseExact(regex.Match(x).Groups[1].Value, "MM/dd HH:mm:ss.fff", CultureInfo.InvariantCulture)).ToList();
+                var regex = new Regex(@"^(.+?) \| ");
+                var dateTimes = linesFiltered.Select(x =>
+                {
+                    var time = regex.Match(x).Groups[1].Value;
+                    return DateTime.ParseExact(time, "MM/dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
+                }).ToList();
                 var byH = dateTimes.GroupBy(x => x.Hour     ).ToDictionary(x => x.Key, x => x.Count());
                 var byD = dateTimes.GroupBy(x => x.DayOfWeek).ToDictionary(x => x.Key, x => x.Count());
                 var byM = dateTimes.GroupBy(x => x.Month    ).ToDictionary(x => x.Key, x => x.Count());
@@ -118,7 +206,7 @@ namespace BotLogsExplorer
                 {
                     var x = byH.GetValueOrDefault(i, 0);
                     var hour = (24 + i + options.TimeOffset) % 24;
-                    Console.WriteLine($"{hour,2}:00 - {hour+1,2}:00 {x,8} {new string('=', (int)(k * x))}");
+                    Console.WriteLine($"{hour,2}:00 - {hour + 1,2}:00 {x,8} {new string('=', (int)(k * x))}");
                 }
 
                 Console.WriteLine("\nBY WEEK DAY");
@@ -147,3 +235,32 @@ namespace BotLogsExplorer
         }
     }
 }
+
+/* ==== Templates
+
+COMMAND:                   ->         /
+10/14 21:43:13.280 | 12345 -> OK   -T /stickers
+10/14 21:42:13.828 |  CHAT -> OK   PT /toplarg@bot text
+10/14 21:42:13.828 |  CHAT -> MAN  -P /im implode
+
+AUTO:                      <-         @
+10/14 21:42:13.828 |  CHAT <- OK   -P @MEME  25% /mememm!
+10/14 21:42:13.828 |  CHAT <- OK   PP @MEME 150% /toplarg text
+10/14 21:42:13.828 |  CHAT <- FAIL -V @PIPE 48XA /scale 0.5
+10/14 21:42:13.828 |  CHAT <- FAIL -V @AUTO 48XA /pipe scale 0.5 > /nuke > /damn 15
+10/14 21:42:13.828 |  CHAT <- OK   -T @TEXT  20%
+
+CALLBACK:                  ->      *
+10/14 21:42:13.828 |  CHAT -> OK   *bi - 8 10
+
+INLINE:                    --      @
+10/14 21:42:13.828 |  USER -- OK   @bot funny
+10/14 21:42:13.828 |  USER -- OK   @bot a sfx
+
+BOT EVENTS                 >>
+10/14 21:42:13.828 | START >> @bot | Adidas
+10/14 21:42:13.828 |  SAVE >> CHATS 1280 | PACKS   15 | SAVE    3 | DROP    2
+10/14 21:42:13.828 | ADMIN >> /w lol kek
+10/14 21:42:13.828 |  EXIT >> @bot | Adidas
+
+*/
