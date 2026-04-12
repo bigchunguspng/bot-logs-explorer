@@ -32,6 +32,20 @@ void Run(Options options)
         return;
     }
 
+    // CHECK  OPTIONS
+    if (options is { FilterGroupIndex: > 0, FilterGroupValue:     null }
+     || options is { FilterGroupIndex: < 0, FilterGroupValue: not null })
+    {
+        var text =
+            """
+            SPECIFY BOTH VALUES!:
+                -f / --filter-by <include regex group number> 
+                -F / --filter-by-value <include regex group value>
+            """;
+        Console.WriteLine(text);
+        return;
+    }
+
     // ADJUST OPTIONS
     {
         if (options.Limit < 0)
