@@ -136,7 +136,7 @@ void Run(Options options)
 
         Console.WriteLine($"{groups.Count, 8} - LINES DISTINCT");
         Console.WriteLine("\n   COUNT PERCENT EVENT");
-        foreach (var group in groups.Take(options.Limit))
+        foreach (var group in groups.Skip(options.Skip).Take(options.Limit))
         {
             var count = group.Count();
             var percent = Math.Round(100F * count / countFiltered, 2);
@@ -183,7 +183,7 @@ void Run(Options options)
     else
     {
         Console.WriteLine();
-        foreach (var line in linesFiltered.Take(options.Limit))
+        foreach (var line in linesFiltered.Skip(options.Skip).Take(options.Limit))
         {
             Console.WriteLine(line);
         }

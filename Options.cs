@@ -28,6 +28,8 @@ public class Options
     public string? Event            { get; set; }
     [Option('d',  "debug",               HelpText = "Debug --include and --exculde patterns.")]
     public bool    Debug            { get; set; }
+    [Option('s',  "skip",                HelpText = "Number of lines to skip.", Default = 0)]
+    public int     Skip             { get; set; }
     [Option('l',  "limit",               HelpText = "Max number of lines to output.", Default = -1)]
     public int     Limit            { get; set; }
     [Option('t',  "time",                HelpText = "Visualize data as a timetable.")]
