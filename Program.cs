@@ -99,26 +99,26 @@ void Run(Options options)
     {
         if (options.Include != null)
         {
-            var regex = new Regex(options.Include);
-            linesQuery = linesQuery.Where(x => regex.IsMatch(x));
+            var regex_include = new Regex(options.Include);
+            linesQuery = linesQuery.Where(x => regex_include.IsMatch(x));
 
-            if (options is { GroupIndex: > 0, GroupValue: not null })
+            if (options is { FilterGroupIndex: > 0, FilterGroupValue: not null })
             {
-                var regex_2 = new Regex(options.GroupValue);
-                linesQuery = linesQuery.Where(x => regex_2.IsMatch(regex.Match(x).Groups[options.GroupIndex].Value));
+                var regex_filter = new Regex(options.FilterGroupValue);
+                linesQuery = linesQuery.Where(x => regex_filter.IsMatch(regex_include.Match(x).Groups[options.FilterGroupIndex].Value));
             }
         }
 
         if (options.Exclude != null)
         {
-            var regex = new Regex(options.Exclude);
-            linesQuery = linesQuery.Where(x => !regex.IsMatch(x));
+            var regex_exclude = new Regex(options.Exclude);
+            linesQuery = linesQuery.Where(x => regex_exclude.IsMatch(x) == false);
         }
 
         if (options.Remove != null)
         {
-            var regex = new Regex(options.Remove);
-            linesQuery = linesQuery.Select(x => regex.Replace(x, ""));
+            var regex_remove = new Regex(options.Remove);
+            linesQuery = linesQuery.Select(x => regex_remove.Replace(x, ""));
         }
     }
 
@@ -127,7 +127,7 @@ void Run(Options options)
     Console.WriteLine($"{countFiltered, 8} - LINES FILTERED");
 
     // OUTPUT
-    if (options is { Include: not null, GroupIndex: > 0, GroupValue: null })
+    if (options is { Include: not null, GroupIndex: > 0 })
     {
         var regex = new Regex(options.Include);
         var groups = linesFiltered
