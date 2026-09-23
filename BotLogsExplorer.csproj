@@ -11,7 +11,7 @@
         <AssemblyName>pflex</AssemblyName>
         <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
         <RollForward>LatestMajor</RollForward>
-        <Version>2.3.0</Version>
+        <Version>2.3.1</Version>
     </PropertyGroup>
 
     <ItemGroup>
