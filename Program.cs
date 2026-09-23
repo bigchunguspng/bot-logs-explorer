@@ -39,7 +39,7 @@ void Run(Options options)
         var text =
             """
             SPECIFY BOTH VALUES!:
-                -f / --filter-by <include regex group number> 
+                -f / --filter-by       <include regex group number> 
                 -F / --filter-by-value <include regex group value>
             """;
         Console.WriteLine(text);
@@ -134,6 +134,11 @@ void Run(Options options)
             var regex_remove = new Regex(options.Remove);
             linesQuery = linesQuery.Select(x => regex_remove.Replace(x, ""));
         }
+
+        if (options.Uptime != 0)
+        {
+            linesQuery = linesQuery.Where(x => x.Contains("| START >>") || x.Contains("|  EXIT >>"));
+        }
     }
 
     var linesFiltered = linesQuery.ToList();
@@ -141,7 +146,58 @@ void Run(Options options)
     Console.WriteLine($"{countFiltered, 8} - LINES FILTERED");
 
     // OUTPUT
-    if (options is { Include: not null, GroupIndex: > 0 })
+    // UPTIME
+    if (options.Uptime != 0)
+    {
+        var botIsUp = false;
+        var uptimes = new List<(TimeSpan Duration, DateTime Exit)>();
+        var uptime_curr = ((TimeSpan Duration, DateTime Exit))default;
+        foreach (var line in linesFiltered)
+        {
+            var timestamp = $"{options.Uptime}/{line.Remove(18)}";
+            var date = DateTime.ParseExact(timestamp, "yyyy/MM/dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
+            if (line.Contains("| START >>"))
+            {
+                uptime_curr.Exit = date; // store start date here, temporarily
+            }
+            else // | EXIT >>
+            {
+                uptime_curr.Duration = date - uptime_curr.Exit;
+                uptime_curr.Exit = date;
+                uptimes.Add(uptime_curr);
+            }
+        }
+        if (uptime_curr.Duration == TimeSpan.Zero) // bot is up
+        {
+            botIsUp = true;
+            var now = DateTime.Now;
+            uptime_curr.Duration = now - uptime_curr.Exit;
+            uptime_curr.Exit = now;
+            uptimes.Add(uptime_curr);
+        }
+        PrintUptime(botIsUp ? "CURR " : "LAST ", uptime_curr.Duration);
+        var periodStart = uptimes[ 0].Exit - uptimes[0].Duration;
+        var periodEnd   = uptimes[^1].Exit;
+        var period = periodEnd - periodStart;
+        var avg = TimeSpan.FromDays(uptimes.Average(x => x.Duration.TotalDays));
+        var min = TimeSpan.FromDays(uptimes.Min    (x => x.Duration.TotalDays));
+        var max = TimeSpan.FromDays(uptimes.Max    (x => x.Duration.TotalDays));
+        var sla = uptimes.Sum(x => x.Duration.TotalDays) / period.TotalDays;
+        var sla_per_day = TimeSpan.FromDays(1) * sla;
+        PrintUptime("AVG ", avg);
+        PrintUptime("MIN ", min);
+        PrintUptime("MAX ", max);
+        Console.WriteLine($"SLA: {sla * 100}% = {sla_per_day:hh\\:mm\\:ss} per day");
+
+        void PrintUptime(string prefix, TimeSpan duration)
+        {
+            var days =                   duration.Days;
+            var time = TimeSpan.FromDays(duration.TotalDays - days);
+            var days_ed = days == 1 ? "," : "s,";
+            Console.WriteLine($"{prefix,5}UPTIME: {days,4} day{days_ed,-2} {time:hh\\:mm\\:ss}");
+        }
+    }
+    else if (options is { Include: not null, GroupIndex: > 0 })
     {
         var regex = new Regex(options.Include);
         var groups = linesFiltered
