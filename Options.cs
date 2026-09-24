@@ -36,6 +36,4 @@ public class Options
     public bool    TimeTable        { get; set; }
     [Option('o',  "time-offset",         HelpText = "Time offset in hours relative to bot timezone.")]
     public int     TimeOffset       { get; set; }
-    [Option('u',  "uptime",              HelpText = "Get bot uptime statistics. Pass start year.")]
-    public int     Uptime           { get; set; }
 }

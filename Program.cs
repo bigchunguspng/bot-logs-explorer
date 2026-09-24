@@ -134,11 +134,6 @@ void Run(Options options)
             var regex_remove = new Regex(options.Remove);
             linesQuery = linesQuery.Select(x => regex_remove.Replace(x, ""));
         }
-
-        if (options.Uptime != 0)
-        {
-            linesQuery = linesQuery.Where(x => x.Contains("| START >>") || x.Contains("|  EXIT >>"));
-        }
     }
 
     var linesFiltered = linesQuery.ToList();
@@ -146,109 +141,7 @@ void Run(Options options)
     Console.WriteLine($"{countFiltered, 8} - LINES FILTERED");
 
     // OUTPUT
-    if (options.Uptime != 0)
-    {
-        var prev_month = 0;
-        var year = options.Uptime;
-        var botIsUp = false;
-        var uptimes = new List<(TimeSpan Duration, DateTime Exit)>();
-        var uptime_curr = ((TimeSpan Duration, DateTime Exit))default;
-        foreach (var line in linesFiltered)
-        {
-            var month = int.Parse(line.Remove(2));
-            if (month < prev_month) year++;
-            prev_month = month;
-
-            var timestamp = $"{year}/{line.Remove(18)}";
-            var date = DateTime.ParseExact(timestamp, "yyyy/MM/dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
-            if (line.Contains("| START >>"))
-            {
-                uptime_curr.Exit = date; // store start date here, temporarily
-            }
-            else // | EXIT >>
-            {
-                uptime_curr.Duration = date - uptime_curr.Exit;
-                uptime_curr.Exit = date;
-                uptimes.Add(uptime_curr);
-            }
-        }
-        if (uptime_curr.Duration == TimeSpan.Zero) // bot is up
-        {
-            botIsUp = true;
-            var now = DateTime.Now;
-            uptime_curr.Duration = now - uptime_curr.Exit;
-            uptime_curr.Exit = now;
-            uptimes.Add(uptime_curr);
-        }
-        Console.WriteLine(" ==== UPTIME ============");
-        PrintUptime(botIsUp ? "CURR" : "LAST", uptime_curr.Duration);
-        var periodStart = uptimes[ 0].Exit - uptimes[0].Duration;
-        var periodEnd   = uptimes[^1].Exit;
-        var period = periodEnd - periodStart;
-        var avg = TimeSpan.FromDays(uptimes.Average(x => x.Duration.TotalDays));
-        var min = TimeSpan.FromDays(uptimes.Min    (x => x.Duration.TotalDays));
-        var max = TimeSpan.FromDays(uptimes.Max    (x => x.Duration.TotalDays));
-        var sum = TimeSpan.FromDays(uptimes.Sum    (x => x.Duration.TotalDays));
-        var sla = uptimes.Sum(x => x.Duration.TotalDays) / period.TotalDays;
-        var sla_per_day = TimeSpan.FromDays(1) * sla;
-        PrintUptime("AVG", avg);
-        PrintUptime("MIN", min);
-        PrintUptime("MAX", max);
-        PrintUptime("SUM", sum);
-        Console.WriteLine(" ==== SLA ===============");
-        Console.WriteLine($"  ALL TIME, %: {sla * 100}%");
-        Console.WriteLine($"  ALL TIME, H: {sla_per_day:hh\\:mm\\:ss} (per day)");
-
-        var today = DateTime.Today;
-        var day_4W_ago = today.AddDays(-28);
-        var last28days = new TimeSpan[28]; // from today to 4w ago
-        foreach (var (duration, end) in uptimes.SkipWhile(x => x.Exit.Date < day_4W_ago))
-        {
-            var       start = end - duration;
-            var day = start; // init with exact time!
-            while (true)
-            {
-                var i = (today - day.Date).Days;
-                if (i >= 28) continue;
-
-                if (day.Date == end.Date)
-                {
-                    var time = end - day;
-                    last28days[i] += time;
-                    break;
-                }
-
-                var nextDay = day.Date.AddDays(1);
-                last28days[i] += nextDay - day;
-                day = nextDay; // set to 00:00 on iterations
-            }
-        }
-
-        var week1 = TimeSpan.FromDays(last28days.Skip( 0).Take(7).Average(x => x.TotalDays));
-        var week2 = TimeSpan.FromDays(last28days.Skip( 7).Take(7).Average(x => x.TotalDays));
-        var week3 = TimeSpan.FromDays(last28days.Skip(14).Take(7).Average(x => x.TotalDays));
-        var week4 = TimeSpan.FromDays(last28days.Skip(21).Take(7).Average(x => x.TotalDays));
-        Console.WriteLine(               $"        TODAY: {last28days[0]:hh\\:mm\\:ss}");
-        Console.WriteLine(               $"    YESTERDAY: {last28days[1]:hh\\:mm\\:ss}");
-        Console.WriteLine($"{today.AddDays(-2),13:MM/dd}: {last28days[2]:hh\\:mm\\:ss}");
-        Console.WriteLine($"{today.AddDays(-3),13:MM/dd}: {last28days[3]:hh\\:mm\\:ss}");
-        Console.WriteLine($"{today.AddDays(-4),13:MM/dd}: {last28days[4]:hh\\:mm\\:ss}");
-        Console.WriteLine($"{today.AddDays(-5),13:MM/dd}: {last28days[5]:hh\\:mm\\:ss}");
-        Console.WriteLine($"{today.AddDays(-6),13:MM/dd}: {last28days[6]:hh\\:mm\\:ss}");
-        Console.WriteLine(               $"THIS WEEK AVG: {week1:hh\\:mm\\:ss}");
-        Console.WriteLine(               $"LAST WEEK AVG: {week2:hh\\:mm\\:ss}");
-        Console.WriteLine(               $"  2W  AGO AVG: {week3:hh\\:mm\\:ss}");
-        Console.WriteLine(               $"  3W  AGO AVG: {week4:hh\\:mm\\:ss}");
-
-        void PrintUptime(string prefix, TimeSpan duration)
-        {
-            var days =                   duration.Days;
-            var time = TimeSpan.FromDays(duration.TotalDays - days);
-            var days_ed = days == 1 ? "," : "s,";
-            Console.WriteLine($"{prefix,4}: {days,4} day{days_ed,-2} {time:hh\\:mm\\:ss}");
-        }
-    }
-    else if (options is { Include: not null, GroupIndex: > 0 })
+    if (options is { Include: not null, GroupIndex: > 0 })
     {
         var regex = new Regex(options.Include);
         var groups = linesFiltered
