@@ -146,15 +146,20 @@ void Run(Options options)
     Console.WriteLine($"{countFiltered, 8} - LINES FILTERED");
 
     // OUTPUT
-    // UPTIME
     if (options.Uptime != 0)
     {
+        var prev_month = 0;
+        var year = options.Uptime;
         var botIsUp = false;
         var uptimes = new List<(TimeSpan Duration, DateTime Exit)>();
         var uptime_curr = ((TimeSpan Duration, DateTime Exit))default;
         foreach (var line in linesFiltered)
         {
-            var timestamp = $"{options.Uptime}/{line.Remove(18)}";
+            var month = int.Parse(line.Remove(2));
+            if (month < prev_month) year++;
+            prev_month = month;
+
+            var timestamp = $"{year}/{line.Remove(18)}";
             var date = DateTime.ParseExact(timestamp, "yyyy/MM/dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
             if (line.Contains("| START >>"))
             {
